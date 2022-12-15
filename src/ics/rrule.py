@@ -1,10 +1,13 @@
+from copy import copy
+import datetime
 import dateutil.rrule
-
+from typing import Union,Optional, overload, List
 from ics.contentline.parser import ContentLineParser
 
 __all__ = [
     "rrule_to_dict",
     "rrule_to_ContentLine",
+    "rrule_tzify",
     "rrule_eq",
     "rrule_hash",
     "rrule_repr",
@@ -34,7 +37,44 @@ def rrule_to_ContentLine(self: dateutil.rrule.rrule):
     assert len(val) == 1
     return ContentLineParser().parse(val[0])
 
+def rrule_tzify(self:dateutil.rrule.rrule,tzinfo:datetime.tzinfo)->dateutil.rrule.rrule:        
 
+    def _tzify(val):
+        if isinstance(val,datetime.datetime):
+            return val.astimezone(datetime.timezone(tzinfo.utcoffset(val),tzinfo.tzid))
+        else:
+            return val
+
+    repl= {"dtstart": _tzify(self._dtstart), "until":_tzify(self._until)}
+    return self.replace(**repl)
+
+dateutil.rrule.rrule.tzify = rrule_tzify  # type: ignore[assignment]
+
+def rruleset_tzify(self:dateutil.rrule.rruleset,tzinfo:datetime.tzinfo)->dateutil.rrule.rruleset:
+
+    def _tzify(val):
+        if isinstance(val,datetime.datetime):
+            return val.astimezone(datetime.timezone(tzinfo.utcoffset(val),tzinfo.tzid))
+        elif isinstance(val,list):
+            return list(map(_tzify,val))
+        elif isinstance(val,dateutil.rrule.rrule):
+            return rrule_tzify(val,tzinfo)
+        else:
+            return val
+
+    ret = dateutil.rrule.rruleset()
+    for d in _tzify(self._exdate):
+        ret.exdate(d)
+    for r in _tzify(self._exrule):
+        ret.exrule(r)
+    for d in _tzify(self._rdate):
+        ret.rdate(d)
+    for r in _tzify(self._rrule):
+        ret.rrule(r)
+    return ret
+    
+dateutil.rrule.rruleset.tzify = rruleset_tzify  # type: ignore[assignment]
+  
 def rrule_eq(self: dateutil.rrule.rrule, other: dateutil.rrule.rrule):
     if not isinstance(other, dateutil.rrule.rrule):
         return False

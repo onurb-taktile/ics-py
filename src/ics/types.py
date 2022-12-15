@@ -167,6 +167,8 @@ EmptyParams = cast("ExtraParams", EmptyDict)
 ContextDict = NewType("ContextDict", Dict[Any, Any])  # defaultdict(lambda: None)
 EmptyContext = cast("ContextDict", EmptyDict)
 
+if not TYPE_CHECKING:
+    EmptyContext={}
 
 def copy_extra_params(old: Optional[ExtraParams]) -> ExtraParams:
     new: ExtraParams = ExtraParams(dict())

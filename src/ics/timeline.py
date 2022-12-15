@@ -1,11 +1,13 @@
 import heapq
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING, Iterable, Iterator, Optional, Tuple
+import dateutil.rrule
+from typing import TYPE_CHECKING, Iterable, Iterator, Optional, Tuple, List, Union
 
 import attr
 
 from ics.event import Event
-from ics.timespan import Normalization, Timespan
+from ics.timespan import EventTimespan, Normalization, Timespan
+from ics.timezone import UTC, ensure_utc
 from ics.types import DatetimeLike, OptionalDatetimeLike, TimespanOrBegin
 from ics.utils import (
     ceil_datetime_to_midnight,
@@ -22,10 +24,13 @@ class Timeline:
     """
     `Timeline`s allow iterating all event from a `Calendar` in chronological order, optionally also filtering events
     according to their timestamps.
+    The Timeline's range can be configured via _range attribute (Timespan)
     """
 
     _calendar: "Calendar" = attr.ib()
     _normalization: Optional[Normalization] = attr.ib()
+    
+    _range: Timespan = attr.ib(default=Timespan(datetime.min,datetime.max.replace(microsecond=0))) #type:ignore[attrs]
 
     def __normalize_datetime(self, instant: DatetimeLike) -> datetime:
         """
@@ -53,6 +58,45 @@ class Timeline:
             timespan = self._normalization.normalize(timespan)
         return timespan
 
+    @property
+    def range(self) -> Timespan:
+        return self._range
+    
+    @range.setter
+    def range(self,r:Union[Tuple[DatetimeLike,DatetimeLike],Timespan]):
+        self._range=r if isinstance(r,Timespan) else Timespan(*[ensure_utc(d) for d in r])
+
+    def __normalize_rtimespan(self,start:TimespanOrBegin, stop: OptionalDatetimeLike = None
+    ,rrule: Optional[dateutil.rrule.rruleset]=dateutil.rrule.rruleset()) -> List[Timespan]:
+        """
+        Create a normalized timespans list starting with `start` to `stop` and applying the provided rruleset
+        Alternatively, this method can be called directly with a single timespan as parameter, specifying the rrule as a named parameter
+        """
+        if rrule is None:
+            return [self.__normalize_timespan(start,stop)]
+
+        NB_MAX=1000
+        
+        if isinstance(start, Timespan):
+            if stop is not None:
+                raise ValueError("can't specify a Timespan and an additional stop time")
+            stime = start.begin_time
+            duration = start.get_effective_duration()
+        else:
+            stime = ensure_datetime(start)
+            etime = ensure_datetime(stop)
+            assert(etime is not None)
+            duration =  etime - stime
+
+        timespans=[]
+        for d in rrule.between(self._range.get_begin(),self._range.get_effective_end(),True,NB_MAX):
+            t=EventTimespan(d,d+duration) #type:ignore[attrs]
+            if self._normalization:
+                t = self._normalization.normalize(t)
+            timespans.append(t)
+        return timespans
+
+
     def iterator(self) -> Iterator[Tuple[Timespan, Event]]:
         """
         Iterates on every event from the :class:`ics.icalendar.Calendar` in chronological order
@@ -65,7 +109,20 @@ class Timeline:
         # much bigger than the number of events we extract from the iterator (k).
         # Complexity: O(n + k log n).
         heap: Iterable[Tuple[Timespan, Event]] = (
-            (self.__normalize_timespan(e.timespan), e) for e in self._calendar.events
+            (t, Event(e.summary,
+                      timespan=t,
+                      attach=e.attach,
+                      alarms=e.alarms,
+                      attendees=e.attendees,
+                      categories=e.categories,
+                      description=e.description,
+                      location=e.location,
+                      url=e.url,
+                      status=e.status,
+                      classification=e.classification,
+                      transparent=e.transparent,
+                      organizer=e.organizer,
+                      geo=e.geo),) for e in self._calendar.events for t in self.__normalize_rtimespan(e.timespan,rrule=e.rrule)
         )
         heap = [t for t in heap if t[0]]
         heapq.heapify(heap)

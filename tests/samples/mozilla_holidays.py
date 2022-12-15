@@ -1,11 +1,14 @@
 import os
+import sys
+
+sys.path.insert(0,os.path.abspath("./src"))
 
 import ics
 
 PREFIX = "https://www.thunderbird.net"
 URLS = [
     "/media/caldata/AlgeriaHolidays.ics",
-    "/media/caldata/ArgentinaHolidays.ics",
+    #"/media/caldata/ArgentinaHolidays.ics",
     "/media/caldata/AustraliaHolidays.ics",
     "/media/caldata/AustrianHolidays.ics",
     "/media/caldata/BasqueHolidays.ics",

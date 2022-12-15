@@ -1,6 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional,cast
 
 from attr import Attribute
+
+from datetime import timezone
 
 from ics.component import Component
 from ics.contentline import Container
@@ -25,7 +27,7 @@ class TimezoneMeta(ImmutableComponentMeta):
         #       "DTSTART" in this usage MUST be specified as a date with a local
         #       time value.
 
-        instance = super().load_instance(container, context)
+        instance = cast(Timezone,super().load_instance(container, context))
         if context is not None:
             available_tz = context.setdefault(
                 DatetimeConverterMixin.CONTEXT_KEY_AVAILABLE_TZ, {}

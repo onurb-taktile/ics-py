@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta
+import dateutil
+import dateutil.rrule
+
 from typing import Any, ClassVar, List, Optional, Tuple, Type, Union
 
 import attr
@@ -13,7 +16,7 @@ from ics.attendee import Attendee, Organizer
 from ics.component import Component
 from ics.geo import Geo, make_geo
 from ics.timespan import EventTimespan, Timespan
-from ics.timezone import UTC, ensure_utc, now_in_utc
+from ics.timezone import UTC, ensure_utc, now_in_utc, rrule_to_rruleset
 from ics.types import (
     URL,
     DatetimeLike,
@@ -68,6 +71,8 @@ class CalendarEntryAttrs(Component):
 
     alarms: List[BaseAlarm] = attr.ib(factory=list, converter=list)
     attach: List[Union[URL, bytes]] = attr.ib(factory=list, converter=list)
+
+    rrule: Optional[dateutil.rrule.rruleset] = attr.ib(default=dateutil.rrule.rruleset() ,converter=rrule_to_rruleset, validator=instance_of(dateutil.rrule.rruleset))  # type: ignore[misc]
 
     # this is overridden by subclasses and then read by the Timespan converter to instantiate an object of the right subclass
     _TIMESPAN_TYPE: ClassVar[Type[Timespan]] = Timespan

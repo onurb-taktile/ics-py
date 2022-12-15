@@ -21,12 +21,12 @@ from ics.converter.component import ComponentMeta
 from ics.rrule import rrule_to_ContentLine
 from ics.types import ContainerItem, ContextDict, ExtraParams, copy_extra_params
 from ics.utils import one
+from ics.timezone import ensure_utc
 from ics.valuetype.datetime import DatetimeConverter, DatetimeConverterMixin
 
 
 def unique_justseen(iterable, key=None):
     return map(next, map(operator.itemgetter(1), itertools.groupby(iterable, key)))
-
 
 class RecurrenceConverter(AttributeConverter):
     @property
@@ -51,12 +51,19 @@ class RecurrenceConverter(AttributeConverter):
         # TODO only feed dateutil the params it likes, add the rest as extra
         tzinfos = context.get(DatetimeConverterMixin.CONTEXT_KEY_AVAILABLE_TZ, {})
         rrule = dateutil.rrule.rrulestr(lines_str, tzinfos=tzinfos, compatible=True)
-        rrule._rdate = list(unique_justseen(sorted(rrule._rdate)))  # type: ignore
-        rrule._exdate = list(unique_justseen(sorted(rrule._exdate)))  # type: ignore
+        rrule._rdate = list(unique_justseen(sorted(map(ensure_utc,rrule._rdate))))  # type: ignore
+        rrule._exdate = list(unique_justseen(sorted(map(ensure_utc,rrule._exdate))))  # type: ignore
+        rrule._rrule = list(map(lambda r:r.replace(dtstart=ensure_utc(r._dtstart)),rrule._rrule))
+
         self.set_or_append_value(component, rrule)
 
     def serialize(self, component: Component, output: Container, context: ContextDict):
-        value = self.get_value(component)
+        tzinfos = context.get(DatetimeConverterMixin.CONTEXT_KEY_AVAILABLE_TZ, None)
+        if tzinfos is not None:
+            tzinfo = list(tzinfos.values())[0]
+            value = self.get_value(component).tzify(tzinfo)
+        else:
+            value = self.get_value(component)
         if not TYPE_CHECKING:
             assert isinstance(value, dateutil.rrule.rruleset)
         for rrule in itertools.chain(value._rrule, value._exrule):

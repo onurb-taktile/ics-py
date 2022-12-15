@@ -186,7 +186,7 @@ class Timezone(Component, _tzinfo):
         if len(self.observances) < 2:
             return self.observances[0]
 
-        return self._find_observance_cachable(dt.replace(tzinfo=None))
+        return self._find_observance_cachable(dt.replace(tzinfo=UTC))
 
     def _find_observance_cachable(self, dt):
         # adapted from dateutil.tz.tz._tzicalvtz._find_comp
@@ -241,6 +241,6 @@ UTC = Timezone(
             cast(UTCOffset, TIMEDELTA_ZERO),
             RRULE_EPOCH_START,
             "UTC",
-        )
+        ) #type: ignore[attr-defined]
     ],
-)
+) #type:ignore[attr-defined]
